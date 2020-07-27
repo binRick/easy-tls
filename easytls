@@ -110,8 +110,13 @@ cmd_help()
   build-tls-crypt-v2-server <server_filename_base>
       Create an OpenVPN TLS crypt V2 Server key" ;;
 		build-tls-crypt-v2-client) text="
-  build-tls-crypt-v2-client <server_filename_base> <client_filename_base>
-      Create an OpenVPN TLS crypt V2 Client key" ;;
+  build-tls-crypt-v2-client <server_filename_base> <client_filename_base> [ cmd-opts ]
+      Create an OpenVPN TLS crypt V2 Client key"
+			opts="
+        enc     - Encrypt the metadata field
+                  The entire metadata field will be AES-256-CBC encrypted.
+                  This will require an extra decrypt function to read the metadata
+                  when being read by tls-crypt-v2-verify.sh script." ;;
 		save-id) text="
   save-id [ no options ]
       Save the CA-Identity to easytls/easytls-ca-identity.txt
@@ -1730,8 +1735,8 @@ build_tls_crypt_v2_client ()
 	[ $# -ge 2 ] || \
 	die "Required option(s): <server_filename_base> <client_filename_base>"
 
-	[ $# -eq 2 ] || \
-	warn "Ignoring unknown option(s): $3 $4 $5 .. etc."
+	#[ $# -eq 2 ] || \
+	#warn "Ignoring unknown option(s): $3 $4 $5 .. etc."
 
 	# Verify Easy-TLS and Easy-RSA have been correctly setup
 	# This key does not require EasyRSA PKI
@@ -1769,6 +1774,15 @@ Missing cli file: $cli_cert"
 
 	[ -f "$in_file" ] || die "Server key does not exist: $in_file"
 	[ -f "$key_file" ] && die "Client key already exists: $key_file"
+
+	cmd_opts=""
+	while [ -n "$1" ]; do
+		case "$1" in
+			enc)	encrypt_metadata=1 ;;
+			*)	warn "Ignoring unknown command option: '$1'" ;;
+		esac
+		shift
+	done
 
 	metadata=""
 	b64_metadata=""
@@ -1828,11 +1842,20 @@ b64_enc_metadata ()
 		metadata="$metadata $EASYTLS_TLSCV2_CG"
 	fi
 
+	# Encrypt metadata
+	# TODO: Set passphrase
+	if [ $encrypt_metadata ]
+	then
+		metadata="$(fn_aes_metadata)"
+	fi
+
 	[ $EASYTLS_TRAVIS_CI ] && debug_metadata
 
 	easytls_verbose "metadata: $metadata"
 	# Base64 encode metadata
-	b64_metadata="$(printf "%s" "$metadata"|"$EASYRSA_OPENSSL" enc -e -a -A)"
+	#b64_metadata="$(printf "%s" "$metadata"|"$EASYRSA_OPENSSL" enc -e -a -A)"
+	b64_metadata="$(fn_b64_metadata)"
+
 } # => b64_enc_metadata ()
 
 # Generate CA Identity from CA fingerprint
@@ -1862,11 +1885,24 @@ fn_ca_identity ()
 	printf '%s' "$ca_fingerprint" | sed -e 's/^.*=//g' -e 's/://g'
 }
 
+# AES encrypt metadata
+fn_aes_metadata ()
+{
+	printf '%s' "$metadata" | \
+		"$EASYRSA_OPENSSL" enc -e -aes-256-cbc -k t1nc4nt3ch -pbkdf2
+}
+
+# Base64 encode metadata
+fn_b64_metadata ()
+{
+	printf '%s' "$metadata" | "$EASYRSA_OPENSSL" enc -e -a -A
+}
+
 # DEBUG metadata
 debug_metadata ()
 {
 	metadata_debug="$EASYTLS_PKI/tls-crypt-v2-$cli_name.mdd"
-	printf "%s\n" "$metadata" > "$metadata_debug"
+	printf "%s" "$metadata" > "$metadata_debug"
 }
 
 # Save the ID
