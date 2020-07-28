@@ -132,6 +132,8 @@ help_text ()
                       See EasyTLS-Howto.txt for an example.
   --hex-check         Enable serial number is Hex only check. (Not required)
   --disable-list      Disable the temporary disabled-list check.
+  --preload-password=password
+                      Preload the passphrase for encrypted metadata keys.
 
   Exit codes:
   0   - Allow connection, Client key has passed all tests.
@@ -192,6 +194,20 @@ metadata_string_to_vars ()
 	md_name="$4"
 	md_date="$5"
 	md_custom_g="$6"
+}
+
+# Decrypt metadata
+metadata_decrypt ()
+{
+	metadata_string_decrypt > /dev/null || return 1
+	metadata_string="$(metadata_string_decrypt)"
+}
+
+# Decrypt metadata
+metadata_string_decrypt ()
+{
+	printf '%s' "$metadata_string" | \
+		openssl enc -d -aes-256-cbc -k $preload_password -pbkdf2
 }
 
 # Convert metadata file to metadata_string
@@ -508,6 +524,15 @@ deps ()
 	# Load binary: cat +1
 	metadata_string="$(metadata_file_to_metadata_string)"
 
+	# Decrypt metadata
+	if [ $preload_password ]
+	then
+		failure_msg="Failed to decrypt metadata"
+		metadata_decrypt "$metadata_string" || \
+			fail_and_exit "DECRYPT_METADATA" 8
+		unset failure_msg
+	fi
+
 	# Populate metadata variables
 	metadata_string_to_vars $metadata_string
 
@@ -578,6 +603,9 @@ do
 	;;
 	--preload-cache-id)
 		preload_cache_id="$val"
+	;;
+	--preload-password)
+		preload_password="$val"
 	;;
 	--hex-check)
 		empty_ok=1

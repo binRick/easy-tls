@@ -128,6 +128,7 @@ do
 		"build-client-full c06 nopass" \
 		"build-client-full c07 nopass" \
 		"build-client-full c08 nopass" \
+		"build-client-full c09 nopass" \
 		"--keysize=64 gen-dh" \
 		## EOL
 	do
@@ -144,6 +145,7 @@ do
 		"--custom-group=tincantech build-tls-crypt-v2-client s01 c05" \
 		"--custom-group=tincantech build-tls-crypt-v2-client s01 c06" \
 		"--custom-group=tincantech build-tls-crypt-v2-client s01 c08" \
+		"--custom-group=tincantech build-tls-crypt-v2-client s01 c09 enc" \
 		"inline-base s01 add-dh" "inline-status" "inline-renew s01 add-dh" "inline-status" \
 		"inline-remove s01" "inline-status" \
 		"inline-tls-auth s01 0 add-dh" "inline-status" "inline-renew s01 add-dh" "inline-status" \
@@ -165,6 +167,7 @@ do
 		"inline-tls-crypt-v2 c05" "inline-status" "disable c05" "enable c05" \
 		"inline-tls-crypt-v2 c06" "inline-status" \
 		"inline-tls-crypt-v2 c08" "inline-status" \
+		"inline-tls-crypt-v2 c09" "inline-status" \
 		"cert-expire" \
 		"inline-expire" \
 		#"inline-index-rebuild" \
@@ -337,6 +340,23 @@ do
 
 		echo
 	done
+
+	# Test an encrypted metadata key
+		c="c09"
+		print "============================================================"
+		print "Test an encrypted metadata key - c09"
+		  echo metadata_file="$DBUG_DIR/tls-crypt-v2-${c}.mdd"
+		export metadata_file="$DBUG_DIR/tls-crypt-v2-${c}.mdd"
+
+		print "------------------------------------------------------------"
+		plcid="$(cat "$PKI_DIR/easytls/easytls-ca-identity.txt")"
+		echo "$TLSCV2V_CMD" $TLSCV2V_OPTS -c="$PKI_DIR" -g=tincantech --verify-via-index --preload-cache-id="$plcid" --preload-password=t1nc4nt3ch
+		     "$TLSCV2V_CMD" $TLSCV2V_OPTS -c="$PKI_DIR" -g=tincantech --verify-via-index --preload-cache-id="$plcid" --preload-password=t1nc4nt3ch
+		exit_code=$?
+		[ $exit_code -eq 0 ] || total_expected_errors=$((total_expected_errors + 1))
+		echo "exit: $exit_code"
+
+		echo
 	print "============================================================"
 	print "$EASYTLS_CMD $EASYTLS_OPTS inline-status"
 	"$EASYTLS_CMD" $EASYTLS_OPTS inline-status || \
