@@ -356,6 +356,9 @@ do
 		[ $exit_code -eq 0 ] || total_expected_errors=$((total_expected_errors + 1))
 		echo "exit: $exit_code"
 
+#echo "FORCED BREAK"
+#exit 99
+
 		echo
 	print "============================================================"
 	print "$EASYTLS_CMD $EASYTLS_OPTS inline-status"

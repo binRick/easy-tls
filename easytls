@@ -1842,20 +1842,13 @@ b64_enc_metadata ()
 		metadata="$metadata $EASYTLS_TLSCV2_CG"
 	fi
 
-	# Encrypt metadata
-	# TODO: Set passphrase
-	if [ $encrypt_metadata ]
-	then
-		metadata="$(fn_aes_metadata)"
-	fi
-
-	[ $EASYTLS_TRAVIS_CI ] && debug_metadata
-
+	# Display metadata
 	easytls_verbose "metadata: $metadata"
+
 	# Base64 encode metadata
-	#b64_metadata="$(printf "%s" "$metadata"|"$EASYRSA_OPENSSL" enc -e -a -A)"
 	b64_metadata="$(fn_b64_metadata)"
 
+	if [ $EASYTLS_TRAVIS_CI ]; then debug_metadata; fi
 } # => b64_enc_metadata ()
 
 # Generate CA Identity from CA fingerprint
@@ -1885,24 +1878,29 @@ fn_ca_identity ()
 	printf '%s' "$ca_fingerprint" | sed -e 's/^.*=//g' -e 's/://g'
 }
 
-# AES encrypt metadata
-fn_aes_metadata ()
-{
-	printf '%s' "$metadata" | \
-		"$EASYRSA_OPENSSL" enc -e -aes-256-cbc -k t1nc4nt3ch -pbkdf2
-}
-
 # Base64 encode metadata
 fn_b64_metadata ()
 {
-	printf '%s' "$metadata" | "$EASYRSA_OPENSSL" enc -e -a -A
+	if [ $encrypt_metadata ]
+	then
+		# Encrypt metadata
+		# TODO: Set passphrase
+		printf '%s' "$metadata" | \
+			"$EASYRSA_OPENSSL" enc -e $EASYTLS_CIPHER \
+				-k t1nc4nt3ch -pbkdf2 | \
+			"$EASYRSA_OPENSSL" enc -e -a -A
+	else
+		printf '%s' "$metadata" | \
+			"$EASYRSA_OPENSSL" enc -e -a -A
+	fi
 }
 
 # DEBUG metadata
 debug_metadata ()
 {
-	metadata_debug="$EASYTLS_PKI/tls-crypt-v2-$cli_name.mdd"
-	printf "%s" "$metadata" > "$metadata_debug"
+	metadata_debug_file="$EASYTLS_PKI/tls-crypt-v2-$cli_name.mdd"
+	printf '%s' "$b64_metadata" | "$EASYRSA_OPENSSL" enc -d -a -A \
+		 > "$metadata_debug_file"
 }
 
 # Save the ID
@@ -2116,6 +2114,8 @@ vars_setup()
 	set_var EASYTLS_DISABLED_LIST	"$EASYTLS_PKI/easytls-disabled.txt"
 	set_var EASYTLS_CA_IDENTITY	"$EASYTLS_PKI/easytls-ca-identity.txt"
 	set_var EASYTLS_CA_RANDOM	"$EASYTLS_PKI/easytls-ca-random.txt"
+
+	set_var EASYTLS_CIPHER		"-chacha20"
 
 	# Assign value to $EASYRSA_TEMP_DIR_session and work around
 	# Windows mktemp bug when parent dir is missing

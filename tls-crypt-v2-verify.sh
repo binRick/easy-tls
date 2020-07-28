@@ -199,19 +199,12 @@ metadata_string_to_vars ()
 # Decrypt metadata
 metadata_decrypt ()
 {
-	metadata_string_decrypt > /dev/null || return 1
-	metadata_string="$(metadata_string_decrypt)"
-}
-
-# Decrypt metadata
-metadata_string_decrypt ()
-{
-	printf '%s' "$metadata_string" | \
-		openssl enc -d -aes-256-cbc -k $preload_password -pbkdf2
+	openssl enc -d -in "$openvpn_metadata_file" \
+		-k $preload_password -pbkdf2 $openssl_cipher
 }
 
 # Convert metadata file to metadata_string
-metadata_file_to_metadata_string ()
+metadata_read ()
 {
 	cat "$openvpn_metadata_file"
 }
@@ -474,6 +467,10 @@ init ()
 
 	# Enable disable list by default
 	use_disable_list=1
+
+	# Cipher to encrypt metadata
+	#openssl_cipher="-aes-256-cbc"
+	openssl_cipher="-chacha20"
 }
 
 # Dependancies
@@ -516,21 +513,24 @@ deps ()
 
 	# `metadata_file` must be set by openvpn
 	help_note="This script can ONLY be used by a running openvpn server."
-	[ -f "$openvpn_metadata_file" ] || \
+	[ -r "$openvpn_metadata_file" ] || \
 		die "Missing: openvpn_metadata_file: $openvpn_metadata_file" 28
 	unset help_note
 
-	# Get metadata_string
-	# Load binary: cat +1
-	metadata_string="$(metadata_file_to_metadata_string)"
-
-	# Decrypt metadata
+	# Collect metadata
+	# If either of these fail then the metadata will be missing
+	# and subsequent tests will fail_and_exit
+	# Load external binary count is uneffected,
+	# either cat or openssl must be loaded once
 	if [ $preload_password ]
 	then
-		failure_msg="Failed to decrypt metadata"
-		metadata_decrypt "$metadata_string" || \
-			fail_and_exit "DECRYPT_METADATA" 8
-		unset failure_msg
+		# Decrypt metadata_file
+		# Load binary: openssl +1
+		metadata_string="$(metadata_decrypt)"
+	else
+		# Get metadata_string
+		# Load binary: cat +1
+		metadata_string="$(metadata_read)"
 	fi
 
 	# Populate metadata variables
@@ -634,12 +634,12 @@ done
 deps
 
 # External binaries loaded so far:
-# openssl x0
+# openssl x0 (Use --preload-password +1)
 # grep x0
 # sed x0
 # printf x0
 # date x0
-# cat x1
+# cat x1 (Use --preload-password -1)
 
 
 # Metadata Version
@@ -700,12 +700,12 @@ deps
 	fi
 
 # External binaries loaded so far:
-# openssl x0
+# openssl x0 (Use --preload-password +1)
 # grep x0
 # sed x0
 # printf x0
 # date x1 (Use --tls-age=0 -1)
-# cat x1
+# cat x1 (Use --preload-password -1)
 
 
 # Client certificate serial number
@@ -722,12 +722,12 @@ deps
 	fi
 
 # External binaries loaded so far:
-# openssl x0
+# openssl x0 (Use --preload-password +1)
 # grep x0 (Use --hex-check +1)
 # sed x0
 # printf x0 (Use --hex-check +1)
 # date x1 (Use --tls-age=0 -1)
-# cat x1
+# cat x1 (Use --preload-password -1)
 
 
 # Identity
@@ -768,12 +768,12 @@ deps
 	fi
 
 # External binaries loaded so far:
-# openssl x2 (Use --cache-id/--preload-cache-id -2)
+# openssl x2 (Use --cache-id/--preload-cache-id -2) (Use --preload-password +1)
 # grep x0 (Use --hex-check +1)
 # sed x1 (Use --cache-id/--preload-cache-id -1)
 # printf x0 (Use --hex-check +1)
 # date x1 (Use --tls-age=0 -1)
-# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0)
+# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0) (Use --preload-password -1)
 
 
 # Disabled list
@@ -790,12 +790,12 @@ deps
 	fi
 
 # External binaries loaded so far:
-# openssl x2 (Use --cache-id/--preload-cache-id -2)
+# openssl x2 (Use --cache-id/--preload-cache-id -2) (Use --preload-password +1)
 # grep x1 (Use --hex-check +1) (Use --disable-list -1)
 # sed x1 (Use --cache-id/--preload-cache-id -1)
 # printf x0 (Use --hex-check +1)
 # date x1 (Use --tls-age=0 -1)
-# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0)
+# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0) (Use --preload-password -1)
 
 
 # Verify serial status
@@ -820,12 +820,12 @@ test_method=${test_method:-1}
 		serial_status_via_crl
 
 # External binaries loaded Final:
-# openssl x4 (Use --cache-id/--preload-cache-id -2)
+# openssl x4 (Use --cache-id/--preload-cache-id -2) (Use --preload-password +1)
 # grep x3 (Use --hex-check +1) (Use --disable-list -1)
 # sed x1 (Use --cache-id/--preload-cache-id -1)
 # printf x1 (Use --hex-check +1)
 # date x1 (Use --tls-age=0 -1)
-# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0)
+# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0) (Use --preload-password -1)
 # TOTAL binaries loaded: x11
 # Use --cache-id: x9
 # +Use --tls-age=0 x8
@@ -849,12 +849,12 @@ test_method=${test_method:-1}
 		serial_status_via_ca
 
 # External binaries loaded Final:
-# openssl x3 (Use --cache-id/--preload-cache-id -2)
+# openssl x3 (Use --cache-id/--preload-cache-id -2) (Use --preload-password +1)
 # grep x2 (Use --hex-check: +1) (Use --disable-list -1)
 # sed x1 (Use --cache-id/--preload-cache-id -1)
 # printf x1 (Use --hex-check: +1)
 # date x1 (Use --tls-age=0 -1)
-# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0)
+# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0) (Use --preload-password -1)
 # TOTAL binaries loaded: x9
 # Use --cache-id: x7
 # +Use --tls-age=0 x6
@@ -873,12 +873,12 @@ test_method=${test_method:-1}
 		serial_status_via_pki_index
 
 # External binaries loaded Final:
-# openssl x2 (Use --cache-id/--preload-cache-id -2)
+# openssl x2 (Use --cache-id/--preload-cache-id -2) (Use --preload-password +1)
 # grep x3 (Use --hex-check: +1) (Use --disable-list -1)
 # sed x1 (Use --cache-id/--preload-cache-id -1)
 # printf x0 (Use --hex-check: +1)
 # date x1 (Use --tls-age=0 -1)
-# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0)
+# cat x1 (Use --cache-id +1) (Use --preload-cache-id +0) (Use --preload-password -1)
 # TOTAL binaries loaded: x8
 # Use --cache-id: x6
 # +Use --tls-age=0 x5
